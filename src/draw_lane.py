@@ -1,16 +1,9 @@
-import cv2
-import pickle
-import numpy as np
-import scipy.misc as sci
-import matplotlib.pyplot as plt
-import matplotlib.image as mpimg
 import imageio
 imageio.plugins.ffmpeg.download()
 from moviepy.editor import VideoFileClip
 
 #import helper methods from other files
-from calibrate import undist
-from threshold_helpers import *
+from src.threshold_helpers import *
 
 '''
 load undistortion matrix from camera 
