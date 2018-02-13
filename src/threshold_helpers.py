@@ -6,7 +6,7 @@ import matplotlib.image as mpimg
 import matplotlib.pyplot as plt
 import numpy as np
 
-from src.calibrate import undist
+from src.calibrate_camera import undist
 
 '''
 calculate the threshold of x or y sobel given certain thesh and kernel sizes
