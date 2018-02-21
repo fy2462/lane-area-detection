@@ -1,9 +1,9 @@
 # lane-area-detection
 
+![alt tag](./image/logo.jpg)
+
 ## 简介
 本项目通过分析检测视频中每一帧的车道线，检测车道临近区域并做相应标记，再转换为视频输出。
-
-![alt tag](./image/output_image.jpg)
 
 运行步骤：
 
