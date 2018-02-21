@@ -110,14 +110,14 @@ if __name__ == '__main__':
   # undist(objpoints, imgpoints)
   print('undistort complete')
 
-  test_list = os.listdir('test_images')
+  test_list = os.listdir('process_image')
   with open('test_dist_pickle.p', 'rb') as pick:
     dist_pickle = pickle.load(pick)
 
   mtx = dist_pickle['mtx']
   dist = dist_pickle['dist']
 
-  image = cv2.imread('test_images/test2.jpg')
+  image = cv2.imread('process_image/origin.jpg')
   plt.imshow(image)
   plt.title('original')
   plt.show()

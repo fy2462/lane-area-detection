@@ -9,25 +9,29 @@ from src.threshold_helpers import *
 '''
 load undistortion matrix from camera 
 '''
-with open('test_dist_pickle.p', 'rb') as pick:
+with open('../test_dist_pickle.p', 'rb') as pick:
     dist_pickle = pickle.load(pick)
 
 mtx = dist_pickle['mtx']
 dist = dist_pickle['dist']
 
 bot_width = .6
-mid_width = .15
+mid_width = .2
 height_pct = .7
 bottom_trim = .9
+
+def get_trapezoid(img):
+    trapezoid = np.float32([[img.shape[1] * (.5 - mid_width / 2), img.shape[0] * height_pct],
+                          [img.shape[1] * (.5 + mid_width / 2), img.shape[0] * height_pct],
+                          [img.shape[1] * (.5 + bot_width / 2), img.shape[0] * bottom_trim],
+                          [img.shape[1] * (.5 - bot_width / 2), img.shape[0] * bottom_trim]])
+    return trapezoid
 
 
 def get_roi_mapping(img):
     img_size = (img.shape[1], img.shape[0])
     offset = img_size[0] * .25
-    src = np.float32([[img.shape[1] * (.5 - mid_width / 2), img.shape[0] * height_pct],
-                      [img.shape[1] * (.5 + mid_width / 2), img.shape[0] * height_pct], \
-                      [img.shape[1] * (.5 + bot_width / 2), img.shape[0] * bottom_trim],
-                      [img.shape[1] * (.5 - bot_width / 2), img.shape[0] * bottom_trim]])
+    src = get_trapezoid(img)
     dst = np.float32(
         [[offset, 0], [img_size[0] - offset, 0], [img_size[0] - offset, img_size[1]], [offset, img_size[1]]])
     return src, dst
@@ -58,11 +62,21 @@ most of the code from Udacity's lectures on calculating the curvature
 
 
 def lr_curvature(binary_warped):
+
+    global last_left_base
+    global last_right_base
+    global left_fitx
+    global lefty
+    global right_fitx
+    global righty
+    global ploty
+    global full_text
+
     # Assuming you have created a warped binary image called "binary_warped"
     # Take a histogram of the bottom half of the image
     y_piex_num = binary_warped.shape[0]
     x_piex_num = binary_warped.shape[1]
-    start_y = int(y_piex_num * 0.8)
+    start_y = int(y_piex_num * 0.5)
     aa = binary_warped[start_y:, :]
     histogram = np.sum(aa, axis=0)
     # Create an output image to draw on and  visualize the result
@@ -80,14 +94,20 @@ def lr_curvature(binary_warped):
 
     midpoint = np.int(histogram.shape[0] / 2)
     leftx_base = np.argmax(histogram[:midpoint])
+    if leftx_base < 10:
+        leftx_base = last_left_base
+        return left_fitx, lefty, right_fitx, righty, ploty, full_text
     # revert_array = histogram[::-1]
     # revert_left_base = np.argmax(revert_array[:midpoint])
     # rightx_base = histogram.shape[0] - revert_left_base;
     rightx_base = np.argmax(histogram[midpoint:]) + midpoint
+    if rightx_base < 10:
+        rightx_base = last_right_base
+        return left_fitx, lefty, right_fitx, righty, ploty, full_text
 
     # Choose the number of sliding windows
     nwindows = 50
-    dacay_rate = 0.8
+    dacay_rate = 0.5
     # Set height of windows
     window_height = np.int(binary_warped.shape[0] / nwindows)
     # Identify the x and y positions of all nonzero pixels in the image
@@ -97,6 +117,8 @@ def lr_curvature(binary_warped):
     # Current positions to be updated for each window
     leftx_current = leftx_base
     rightx_current = rightx_base
+    last_left_base = leftx_base
+    last_right_base = rightx_base
     # Set the width of the windows +/- margin
     margin = 50
     # Set minimum number of pixels found to recenter window
@@ -127,7 +149,7 @@ def lr_curvature(binary_warped):
         # Append these indices to the lists
         left_lane_inds.append(good_left_inds)
         right_lane_inds.append(good_right_inds)
-        # If you found > minpix pixels, recenter next window on their mean position
+        # If you found > minpix pixels, recenter next window on their mean position, with EWA
         if len(good_left_inds) > minpix:
             leftx_current = int(
                 dacay_rate * leftx_current + (1 - dacay_rate) * np.int(np.mean(nonzerox[good_left_inds])))
@@ -144,6 +166,9 @@ def lr_curvature(binary_warped):
     lefty = nonzeroy[left_lane_inds]
     rightx = nonzerox[right_lane_inds]
     righty = nonzeroy[right_lane_inds]
+
+    if len(rightx) == 0 or len(leftx) == 0:
+        return left_fitx, lefty, right_fitx, righty, ploty, full_text
 
     # Fit a second order polynomial to each
     left_fit = np.polyfit(lefty, leftx, 2)
@@ -256,7 +281,6 @@ def draw_on_road(img, warped, left_fitx, left_yvals, right_fitx, right_yvals, pl
     # plt.title('color_warp')
     # plt.show()
 
-    img_size = (img.shape[1], img.shape[0])
     dst, src = get_roi_mapping(img)
 
     # image = np.zeros(img_size, dtype=np.int8)
@@ -269,6 +293,10 @@ def draw_on_road(img, warped, left_fitx, left_yvals, right_fitx, right_yvals, pl
     # warp the blank back oto the original image using inverse perspective matrix
     newwarp = cv2.warpPerspective(color_warp, Minv, (img.shape[1], img.shape[0]))
 
+    # plt.imshow(newwarp)
+    # plt.title('lines1')
+    # plt.show()
+
     # combine the result with the original
     result = cv2.addWeighted(img, 1, newwarp, 0.3, 0)
     print('result shape', result.shape)
@@ -279,16 +307,11 @@ def draw_on_road(img, warped, left_fitx, left_yvals, right_fitx, right_yvals, pl
 
 
 def process_image(img):
+    img = cv2.cvtColor(img, cv2.COLOR_RGBA2RGB)
     undist_img = undist(img, mtx, dist)
+    #undist_img = img;
     # plt.imshow(undist_img)
     # plt.title('undist_img')
-    # plt.show()
-
-    # if want to perform mask, do it here
-    # trapezoid, dts = get_roi_mapping(undist_img);
-    # masked_image = region_of_interest(undist_img, [trapezoid.astype('int32')])
-    # plt.imshow(masked_image, cmap='gray')
-    # plt.title('masked_image')
     # plt.show()
 
     combo_image = combo_thresh(undist_img)
@@ -296,16 +319,20 @@ def process_image(img):
     # plt.title('combo_image')
     # plt.show()
 
-    warped_image = change_perspective(combo_image)
+    masked_image = region_of_interest(combo_image, [get_trapezoid(combo_image).astype('int32')])
+    # plt.imshow(masked_image, cmap='gray')
+    # plt.title('masked_image1')
+    # plt.show()
+
+    warped_image = change_perspective(masked_image)
     # plt.imshow(warped_image, cmap='gray')
     # plt.title('warped_image')
     # plt.show()
 
     left_fitx, lefty, right_fitx, righty, ploty, full_text = lr_curvature(warped_image)
-    result = draw_on_road(img, warped_image, left_fitx, lefty, right_fitx, righty, ploty)
+    result = draw_on_road(undist_img, warped_image, left_fitx, lefty, right_fitx, righty, ploty)
     cv2.putText(result, full_text, (200, 100), cv2.FONT_HERSHEY_COMPLEX, 1, 255)
 
-    # sci.imsave('./output_images/5_final.jpg', result)
     return result
 
 
@@ -316,26 +343,19 @@ class Lane():
 
 
 if __name__ == '__main__':
-    images = get_file_images('process_image')
-    # show_images(images)
     lane = Lane()
     # set video variables
-    proj_output = 'output3.mp4'
-    clip1 = VideoFileClip('video_3.mp4')
-    # clip1 = VideoFileClip('challenge_video.mp4')
+    proj_output = '../output_video/test_output.mp4'
+    clip1 = VideoFileClip('../process_video/test.mp4')
 
     # run process image on each video clip and save to file
     output_clip = clip1.fl_image(process_image)
     output_clip.write_videofile(proj_output, audio=False)
-    i = 0
 
-    # thresh_images = threshold_all('test_images', process_image)
-    # show_images(thresh_images)
-
-    # image = mpimg.imread('test_images/straight_road_1x.jpg')
+    images = get_file_images('../process_image')
+    show_images(images)
     for num in range(0, len(images)):
         colored_image = process_image(images[num])
         plt.imshow(colored_image)
         plt.title('colored_image' + str(num))
         plt.show()
-        i = 0

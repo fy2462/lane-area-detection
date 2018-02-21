@@ -110,13 +110,13 @@ def combo_thresh(img):
   # plt.show()
 
   # was 90
-  hls_thresholded = hls_thresh(img, thresh=(100, 255))
+  # hls_thresholded = hls_thresh(img, thresh=(100, 255))
   # plt.imshow(hls_thresholded, cmap='gray')
   # plt.title('hls')
   # plt.show()
-  hsv_thresholded = hsv_thresh(img, thresh=(50, 255))
+  # hsv_thresholded = hsv_thresh(img, thresh=(50, 255))
 
-  dir_thresholded = dir_thresh(img, sobel_kernel=15, thresh=(.7, 1.2))  
+  # dir_thresholded = dir_thresh(img, sobel_kernel=15, thresh=(.7, 1.2))
   # plt.imshow(dir_thresholded, cmap='gray')  
   # plt.title('directional')
   # plt.show()
@@ -150,11 +150,11 @@ def combo_thresh(img):
   # plt.show()
 
 
-  binary_output = np.zeros_like(dir_thresholded)
-  binary_output[((hsv_thresholded == 1) & (hls_thresholded == 1)) | ((x_thresholded == 1) & (y_thresholded == 1))] = 1
+  binary_output = np.zeros_like(x_thresholded)
+  binary_output[((x_thresholded == 1) & (y_thresholded == 1) & (mag_thresholded == 1))] = 1
 
   # binary_output[(((dir_thresholded == 1) | (mag_thresholded == 1) ) & (hls_thresholded == 1)) | ((x_thresholded == 1) & (y_thresholded == 1))] = 1
-  # 
+
   return binary_output
 
 '''
